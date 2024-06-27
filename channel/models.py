@@ -17,7 +17,7 @@ class Channel(Timestamps):
     )
     avatar = models.JSONField(null=True)
     followers = models.ManyToManyField(
-        settings.AUTH_USER_MODEL, related_name="followed_channels", null=True
+        settings.AUTH_USER_MODEL, related_name="followed_channels"
     )
     description = models.TextField(null=True)
     collaborators = models.JSONField(null=True)

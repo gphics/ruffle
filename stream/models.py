@@ -13,7 +13,7 @@ class Stream(Timestamps):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="hosted_stream"
     )
     streamers = models.ManyToManyField(
-        settings.AUTH_USER_MODEL, related_name="my_streams", null=True
+        settings.AUTH_USER_MODEL, related_name="my_streams"
     )
     channel = models.ForeignKey("channel.Channel", on_delete=models.CASCADE)
     description = models.TextField(null=True)

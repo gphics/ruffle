@@ -16,9 +16,9 @@ class News(Timestamps):
         related_name="published_news",
     )
     media = models.JSONField(null=True)
-    tags = models.ManyToManyField("supports.Tag", related_name="news", null=True)
+    tags = models.ManyToManyField("supports.Tag", related_name="news")
     likes = models.ManyToManyField(
-        settings.AUTH_USER_MODEL, related_name="likes", null=True
+        settings.AUTH_USER_MODEL, related_name="likes"
     )
     content = models.TextField(null=True)
 
