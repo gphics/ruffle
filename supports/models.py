@@ -1,18 +1,21 @@
 from django.db import models
 from django.conf import settings
 from shortuuid import uuid
+
 # Create your models here.
 
 
-class Timestamps(models.Model):
+class MetaStamps(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     upated_at = models.DateTimeField(auto_now=True)
+    public_id = models.CharField(default=uuid(), max_length=50, unique=True)
 
     class Meta:
         abstract = True
+        ordering = ["-created_at"]
 
 
-class Comment(Timestamps):
+class Comment(MetaStamps):
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         related_name="comments",
@@ -32,28 +35,25 @@ class Comment(Timestamps):
         null=True,
         on_delete=models.CASCADE,
     )
-    public_id = models.CharField(default=uuid(), max_length=50)
 
     class Meta:
-        # default_related_name = "comments"
-        ordering = ["-created_at"]
+        db_table = "comment"
 
     def __str__(self):
         return self.author.username
 
 
-class Tag(Timestamps):
+class Tag(MetaStamps):
     title = models.CharField(max_length=100)
 
     class Meta:
-        # default_related_name = "tags"
-        ordering = ["-created_at"]
+        db_table = "tag"
 
     def __str__(self):
         return self.title
 
 
-class Report(Timestamps):
+class Report(MetaStamps):
     news = models.ForeignKey(
         "news.News", null=True, on_delete=models.CASCADE, related_name="reported"
     )
@@ -63,7 +63,6 @@ class Report(Timestamps):
         on_delete=models.CASCADE,
         related_name="reported",
     )
-    public_id = models.CharField(default=uuid(), max_length=50)
     content = models.TextField()
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -73,8 +72,7 @@ class Report(Timestamps):
     )
 
     class Meta:
-        # default_related_name = "reports"
-        ordering = ["-created_at"]
+        db_table = "report"
 
     def __str__(self):
         return self.author.username

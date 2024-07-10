@@ -1,14 +1,13 @@
 from django.db import models
-from supports.models import Timestamps
+from supports.models import MetaStamps
 from django.conf import settings
 from shortuuid import uuid
 
 # Create your models here.
 
 
-class Stream(Timestamps):
+class Stream(MetaStamps):
     title = models.CharField(max_length=200)
-    public_id = models.CharField(default=uuid(), max_length=50)
     host = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="hosted_stream"
     )
@@ -19,7 +18,8 @@ class Stream(Timestamps):
     description = models.TextField(null=True)
 
     class Meta:
-        ordering = ["-created_at"]
+        # ordering = ["-created_at"]
+        db_table = "stream"
 
     # default_related_name = "stream"
 

@@ -39,3 +39,4 @@ class profile_serializer(serializers.ModelSerializer):
         model = Profile
         fields = "__all__"
         depth = 2
+
