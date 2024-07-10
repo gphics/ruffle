@@ -1,24 +1,23 @@
 from django.db import models
 from django.conf import settings
-from supports.models import Timestamps
+from supports.models import MetaStamps
 from shortuuid import uuid
 
 # Create your models here.
 
 
-class News(Timestamps):
+class News(MetaStamps):
     title = models.CharField(max_length=300)
-    public_id = models.CharField(default=uuid(), max_length=50)
     channel = models.ForeignKey("channel.Channel", on_delete=models.CASCADE)
     publisher = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        "channel.Publisher",
         on_delete=models.CASCADE,
         related_name="published_news",
     )
     media = models.JSONField(null=True)
-    tags = models.ManyToManyField("supports.Tag", related_name="news", null=True)
+    tags = models.ManyToManyField("supports.Tag", related_name="news")
     likes = models.ManyToManyField(
-        settings.AUTH_USER_MODEL, related_name="likes", null=True
+        settings.AUTH_USER_MODEL, related_name="likes"
     )
     content = models.TextField(null=True)
 
