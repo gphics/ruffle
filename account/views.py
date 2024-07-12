@@ -11,7 +11,7 @@ from rest_framework.authtoken.models import Token
 from rest_framework import generics
 from .utils.serializers.auth import login_serializer
 from django.contrib.auth.models import User
-import cloudinary
+
 from shortuuid import uuid
 from helpers.cloud import Cloud
 
@@ -21,11 +21,22 @@ class RegisterView(APIView):
 
     def post(self, req):
         """
-        A method for creating new user
+        * A method for creating new user
+        * Required data:
+            > username (unique)
+            > email (unique)
+            > password
         """
         user = reg_serializer(data=req.data)
         if not user.is_valid():
-            return Response(generateResponse(err=user.errors))
+            email_err = user.errors.get("email", None)
+            password_err = user.errors.get("password", None)
+            if email_err:
+                return Response(generateResponse(err="email already exist"))
+            if password_err:
+                return Response(
+                    generateResponse(err="password length should be greater than 5")
+                )
         user.save(user.data)
         auth_user = authenticate(
             username=user.data["username"], password=user.data["password"]
@@ -113,6 +124,10 @@ class ProfileView(APIView):
         """
         A method for deleting current the user
         """
+        req_user = req.user
+        if req_user.avatar:
+            cloud = Cloud("ll")
+            cloud.destroy(req_user.avatar["public_id"])
         user = User.objects.filter(username=req.user.username).delete()
         return Response(generateResponse({"message": "account delete successful"}))
 
@@ -141,7 +156,8 @@ class AvatarView(APIView):
             profile.avatar = uploads
             profile.save()
             return Response(generateResponse("profile updated successfully"))
-        except:
+        except Exception as e:
+            print(e)
             return Response(generateResponse(err="something went wrong"))
 
 

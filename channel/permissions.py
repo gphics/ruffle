@@ -60,6 +60,8 @@ class IsSuperPermitted(BasePermission):
     """
 
     def has_permission(self, req, view):
+        if not req.user:
+            return False
         channel_public_id = req.GET.get("channel", None)
         if not channel_public_id:
             return False
@@ -70,9 +72,7 @@ class IsSuperPermitted(BasePermission):
         # checking if the request user is the site  admin
         is_superuser = req.user.is_superuser
         # checking if the request user is the channel owner
-        is_channel_owner = Channel.objects.filter(
-            public_id=channel_public_id, owner=req.user
-        ).exists()
+        is_channel_owner = channel.owner == req.user
         # checking if the request user is one of the channel admin publisher
         publishers = Publisher.objects.filter(user=req.user, channel=channel)
         is_channel_admin = False

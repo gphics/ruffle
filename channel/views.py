@@ -25,10 +25,20 @@ class CrudView(APIView):
         """
         Method for creating a channel
         """
-        channel = ChannelCreateSerializer(data=req.data)
-        if not channel.is_valid():
-            return Response(generateResponse(err=channel.errors))
-        channel.save(owner=req.user, public_id=uuid())
+        ser_data = ChannelCreateSerializer(data=req.data)
+        if not ser_data.is_valid():
+            return Response(
+                generateResponse(err="channel name and description are required")
+            )
+        public_id = uuid()
+        ser_data.save(owner=req.user, public_id=public_id)
+        channel = Channel.objects.get(public_id=public_id)
+
+        publisher = Publisher.objects.create(
+            channel=channel, user=req.user, is_channel_admin=True
+        )
+        publisher.save()
+
         return Response(generateResponse("channel created successfully"))
 
     def get(self, req):
@@ -110,9 +120,14 @@ class CrudView(APIView):
         public_id = req.GET.get("public_id", None)
         if not public_id:
             return Response(generateResponse(err="public_id must be provided"))
-        channel = Channel.objects.filter(public_id=public_id).delete()
+        channel = Channel.objects.filter(public_id=public_id)
         if not channel:
             return Response(generateResponse(err="channel does not exist"))
+        c = channel[0]
+        if c.avatar:
+            cloud = Cloud("ll")
+            cloud.destroy(c.avatar["public_id"])
+        channel.delete()
         return Response(generateResponse("channel deleted"))
 
 
@@ -441,6 +456,7 @@ class AvatarUpload(APIView):
     """
 
     permission_classes = [IsSuperPermitted]
+
     def get(self, req):
         channel_public_id = req.GET.get("channel", None)
         if not channel_public_id:
@@ -452,7 +468,6 @@ class AvatarUpload(APIView):
         return Response(generateResponse(channel["avatar"]))
 
     def post(self, req):
-        
         """
         Method for uploading/updating channel avatar
         """

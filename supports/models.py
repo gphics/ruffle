@@ -44,7 +44,7 @@ class Comment(MetaStamps):
 
 
 class Tag(MetaStamps):
-    title = models.CharField(max_length=100)
+    title = models.CharField(max_length=100, unique=True)
 
     class Meta:
         db_table = "tag"
