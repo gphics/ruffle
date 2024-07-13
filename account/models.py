@@ -12,12 +12,11 @@ class Profile(MetaStamps):
     )
     avatar = models.JSONField(null=True, blank=True)
     phone = models.CharField(max_length=50, null=True, blank=True)
-    location = models.CharField(max_length=200, null=True, blank=True)
-    gender_choices = (("M", "Male"), ("F", "Female"))
-    gender = models.CharField(choices=gender_choices, default="M", max_length=1)
-    # following_channels = models.ManyToManyField("channel.Channel",related_name="fchannels")
-    # owned_channels = models.ManyToManyField("channel.Channel",related_name="ochannels")
-    # member_channels = models.ManyToManyField("channel.Channel",related_name="mchannels")
+    nationality = models.CharField(max_length=200, null=True, blank=True)
+    gender_choices = (("Male", "Male"), ("Female", "Female"))
+    gender = models.CharField(choices=gender_choices, default="Male", max_length=6)
+    date_of_birth = models.DateField(null=True, blank=True)
+    address = models.CharField(max_length=250, null=True, blank=True)
 
     class Meta:
         db_table = "profile"

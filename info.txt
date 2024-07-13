@@ -1,0 +1,12 @@
+access_key = AKIA3SKZNODS4NPLPX4U
+secret_access_key = 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
+
+
+
+
+
+
+
+
+
+s3://tester-2/rock/fushs-300202

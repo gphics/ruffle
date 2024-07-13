@@ -16,20 +16,22 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='Stream',
+            name='News',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('upated_at', models.DateTimeField(auto_now=True)),
                 ('public_id', models.CharField(default='Et9rj56psmnDe3cCEH8EPL', max_length=50, unique=True)),
-                ('title', models.CharField(max_length=200)),
-                ('description', models.TextField(null=True)),
+                ('slug', models.CharField(blank=True, max_length=300, null=True)),
+                ('title', models.CharField(max_length=300)),
+                ('media', models.JSONField(blank=True, null=True)),
+                ('content', models.TextField(blank=True, null=True)),
                 ('channel', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='channel.channel')),
-                ('host', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='hosted_stream', to=settings.AUTH_USER_MODEL)),
-                ('streamers', models.ManyToManyField(related_name='my_streams', to=settings.AUTH_USER_MODEL)),
+                ('likes', models.ManyToManyField(blank=True, related_name='likes', to=settings.AUTH_USER_MODEL)),
+                ('publisher', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='published_news', to='channel.publisher')),
             ],
             options={
-                'db_table': 'stream',
+                'ordering': ['-created_at'],
             },
         ),
     ]

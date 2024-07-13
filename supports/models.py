@@ -27,13 +27,18 @@ class Comment(MetaStamps):
     )
     content = models.TextField()
     news = models.ForeignKey(
-        "news.News", related_name="comments", null=True, on_delete=models.CASCADE
+        "post.News",
+        related_name="comments",
+        null=True,
+        on_delete=models.CASCADE,
+        blank=True,
     )
     stream = models.ForeignKey(
         "stream.Stream",
         related_name="comments",
         null=True,
         on_delete=models.CASCADE,
+        blank=True,
     )
 
     class Meta:
@@ -55,13 +60,18 @@ class Tag(MetaStamps):
 
 class Report(MetaStamps):
     news = models.ForeignKey(
-        "news.News", null=True, on_delete=models.CASCADE, related_name="reported"
+        "post.News",
+        null=True,
+        on_delete=models.CASCADE,
+        related_name="reported",
+        blank=True,
     )
     stream = models.ForeignKey(
         "stream.Stream",
         null=True,
         on_delete=models.CASCADE,
         related_name="reported",
+        blank=True
     )
     content = models.TextField()
     author = models.ForeignKey(
