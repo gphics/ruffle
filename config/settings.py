@@ -27,15 +27,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv("SECRET_KEY")
-
+# print(os.getenv("DEBUG"))
 # SECURITY WARNING: don't run with debug turned on in production!
+# DEBUG = True
 DEBUG = os.getenv("DEBUG")
 
 ALLOWED_HOSTS = []
 
 
 # Application definition
-custom_apps = ["supports", "account", "channel", "stream", "news"]
+custom_apps = ["supports", "account", "channel", "stream", "post"]
 default_apps = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -48,7 +49,8 @@ third_party_apps = [
     "rest_framework",
     "rest_framework.authtoken",
     "corsheaders",
-    "cloudinary",
+    # "cloudinary",
+    # "storages",
     # "cloudinary_storage",
 ]
 INSTALLED_APPS = default_apps + custom_apps + third_party_apps
@@ -143,10 +145,22 @@ STATIC_URL = "static/"
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+# USE OF CLOUDINARY IS DEPRECATED
+# DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
+# cloudinary.config(
+#     cloud_name=os.getenv("CLOUD_NAME"),
+#     api_key=os.getenv("CLOUD_API_KEY"),
+#     api_secret=os.getenv("CLOUD_API_SECRET"),
+# )
 
-DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
-cloudinary.config(
-    cloud_name=os.getenv("CLOUD_NAME"),
-    api_key=os.getenv("CLOUD_API_KEY"),
-    api_secret=os.getenv("CLOUD_API_SECRET"),
-)
+# AWS CONFIGURATION
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+# AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME")
+AWS_S3_FILE_OVERWRITE = False
+# AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com"
+
+# STORAGES = {
+#     "default": {"BACKEND": "storages.backends.s3boto3.S3StaticStorage"},
+#     "staticfiles": {"BACKEND": "storages.backends.s3boto3.S3StaticStorage"},
+# }

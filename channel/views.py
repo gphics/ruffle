@@ -16,7 +16,7 @@ from rest_framework.permissions import IsAdminUser, IsAuthenticated, AllowAny
 from .permissions import IsSuperPermitted, HaveOwnershipRight
 from account.utils.serializers.user import profile_serializer
 from helpers.cloud import Cloud
-
+from . import bot
 
 # Basic CRUD Ops
 class CrudView(APIView):
