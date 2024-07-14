@@ -14,7 +14,7 @@ from django.contrib.auth.models import User
 import os
 import boto3
 from shortuuid import uuid
-from helpers.cloud import Cloud
+
 
 
 class RegisterView(APIView):
@@ -137,23 +137,30 @@ class AvatarView(APIView):
 
     def post(self, req):
         """
-        method for uploading/updating profile avatar
+        * Method for uploading/updating profile avatar
         """
 
         avatar = req.FILES.get("avatar", None)
-        print(avatar.__dict__)
-        content_type = avatar.content_type
-        filename = f"main/ms-{avatar._name}"
-        url = f"https://tester-2.s3.amazonaws.com/{filename}"
-        print(url)
+        
+        if not avatar:
+            return Response(generateResponse(err="avatar file not uploaded"))
+        validation_res = cloud.img_validate(avatar.content_type, avatar.size)
 
-        s3_client = boto3.client("s3", os.getenv("AWS_REGION_NAME"))
-        x = s3_client.upload_fileobj(
-            avatar, "tester-2", filename, ExtraArgs={"ContentType": content_type}
-        )
-        print(x)
-        return Response("")
-
+        if not validation_res["mimetype"]:
+            return Response(generateResponse(err="mimetype not accepted"))
+        if not validation_res["size"]:
+            return Response(generateResponse(err="file size too large"))
+        profile = Profile.objects.get(user=req.user)
+        try:
+            if profile.avatar:
+                cloud.destroy(profile.avatar["public_id"])
+            uploads = cloud.img_upload(avatar)
+            profile.avatar = uploads
+            profile.save()
+            return Response(generateResponse("profile updated successfully"))
+        except Exception as e:
+            print(e)
+            return Response(generateResponse(err="something went wrong"))
     # def post(self, req):
     #     """
     #     method for uploading/updating profile avatar
