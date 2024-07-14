@@ -13,7 +13,7 @@ from .utils.serializers.auth import login_serializer
 from django.contrib.auth.models import User
 
 from shortuuid import uuid
-from helpers.cloud import Cloud
+from helpers
 
 
 class RegisterView(APIView):
@@ -136,10 +136,10 @@ class AvatarView(APIView):
 
     def post(self, req):
         """
-        method for uploading/updating profile avatar
+        * Method for uploading/updating profile avatar
         """
         avatar = req.FILES.get("avatar", None)
-        cloud = Cloud("account")
+        
         if not avatar:
             return Response(generateResponse(err="avatar file not uploaded"))
         validation_res = cloud.img_validate(avatar.content_type, avatar.size)
@@ -159,6 +159,31 @@ class AvatarView(APIView):
         except Exception as e:
             print(e)
             return Response(generateResponse(err="something went wrong"))
+    # def post(self, req):
+    #     """
+    #     method for uploading/updating profile avatar
+    #     """
+    #     avatar = req.FILES.get("avatar", None)
+    #     cloud = Cloud("account")
+    #     if not avatar:
+    #         return Response(generateResponse(err="avatar file not uploaded"))
+    #     validation_res = cloud.img_validate(avatar.content_type, avatar.size)
+
+    #     if not validation_res["mimetype"]:
+    #         return Response(generateResponse(err="mimetype not accepted"))
+    #     if not validation_res["size"]:
+    #         return Response(generateResponse(err="file size too large"))
+    #     profile = Profile.objects.get(user=req.user)
+    #     try:
+    #         if profile.avatar:
+    #             cloud.destroy(profile.avatar["public_id"])
+    #         uploads = cloud.img_upload(avatar)
+    #         profile.avatar = uploads
+    #         profile.save()
+    #         return Response(generateResponse("profile updated successfully"))
+    #     except Exception as e:
+    #         print(e)
+    #         return Response(generateResponse(err="something went wrong"))
 
 
 class UsersView(APIView):
