@@ -67,7 +67,7 @@ class IsSuperPermitted(BasePermission):
             return False
         filt = Channel.objects.filter(public_id=channel_public_id)
         if not filt:
-            return False
+            return True
         channel = filt[0]
         # checking if the request user is the site  admin
         is_superuser = req.user.is_superuser

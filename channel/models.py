@@ -9,6 +9,7 @@ from shortuuid import uuid
 
 class Channel(MetaStamps):
     name = models.CharField(max_length=200)
+    # marked for removal
     is_verified = models.BooleanField(default=False)
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -38,6 +39,7 @@ class Publisher(MetaStamps):
     channel = models.ForeignKey(
         Channel, related_name="publishers", on_delete=models.CASCADE
     )
+    # marked for removal
     is_channel_admin = models.BooleanField(default=False)
 
     class Meta:

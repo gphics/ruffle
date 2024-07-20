@@ -18,7 +18,6 @@ class CloudManager(Main):
 
     def __init__(self, bucket_name, folder):
         self.client = boto3.client("s3", os.getenv("AWS_REGION_NAME"))
-        self.manager = boto3.resource("s3")
         self.folder = folder
         self.bucket_name = bucket_name
 
@@ -33,12 +32,18 @@ class CloudManager(Main):
         try:
             content_type = file.content_type
             cur_date = datetime.datetime.now()
-            key = f"{self.folder}/{cur_date.second}/{cur_date.microsecond}/{file._name}"
+            key = f"{self.folder}/{cur_date.second}-{cur_date.microsecond}-{file._name}"
             url = f"https://{self.bucket_name}.s3.amazonaws.com/{key}"
+            # size = self.to_mb(file.size)
             upload = self.client.upload_fileobj(
                 file, self.bucket_name, key, ExtraArgs={"ContentType": content_type}
             )
-            result = {"url": url, "key": key, "content_type": content_type}
+            result = {
+                "url": url,
+                "key": key,
+                "content_type": content_type,
+                # "size": size,
+            }
             return result
         except Exception as e:
             print(e)
@@ -49,7 +54,7 @@ class CloudManager(Main):
         * Method for deleting a file
         """
         try:
-            first = self.manager.Object(self.bucket_name, key).delete()
+            self.client.delete_object(Bucket=self.bucket_name, Key=key)
         except Exception as e:
             print(e)
             raise e

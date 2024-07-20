@@ -14,7 +14,7 @@ from django.contrib.auth.models import User
 import os
 import boto3
 from shortuuid import uuid
-
+from helpers.bucket import CloudManager
 
 
 class RegisterView(APIView):
@@ -33,10 +33,10 @@ class RegisterView(APIView):
             email_err = user.errors.get("email", None)
             password_err = user.errors.get("password", None)
             if email_err:
-                return Response(generateResponse(err="email already exist"))
+                return Response(generateResponse(err="email already exist"), status=400)
             if password_err:
                 return Response(
-                    generateResponse(err="password length should be greater than 5")
+                    generateResponse(err="password length should be greater than 5"),status=400
                 )
         user.save(user.data)
         auth_user = authenticate(
@@ -47,7 +47,7 @@ class RegisterView(APIView):
         token = Token.objects.get_or_create(user=auth_user)
         user_profile = Profile.objects.create(user=auth_user, public_id=uuid())
         key = str(token[0])
-        return Response(generateResponse({"token": key}))
+        return Response(generateResponse({"token": key}), status=201)
 
 
 class LoginView(APIView):
@@ -125,10 +125,13 @@ class ProfileView(APIView):
         """
         A method for deleting current the user
         """
-        req_user = req.user
-        if req_user.avatar:
-            cloud = Cloud("ll")
-            cloud.destroy(req_user.avatar["public_id"])
+        filt = Profile.objects.filter(user=req.user)
+        if not filt[0]:
+            return Response(generateResponse(err="user does not have a profile"))
+        profile = filt[0]
+        if profile.avatar:
+            cloud = CloudManager("ruffle", "account")
+            cloud.delete(profile.avatar["key"])
         user = User.objects.filter(username=req.user.username).delete()
         return Response(generateResponse({"message": "account delete successful"}))
 
@@ -136,56 +139,36 @@ class ProfileView(APIView):
 class AvatarView(APIView):
 
     def post(self, req):
+        cloud = CloudManager("ruffle", "account")
         """
         * Method for uploading/updating profile avatar
         """
 
         avatar = req.FILES.get("avatar", None)
-        
-        if not avatar:
-            return Response(generateResponse(err="avatar file not uploaded"))
-        validation_res = cloud.img_validate(avatar.content_type, avatar.size)
 
-        if not validation_res["mimetype"]:
-            return Response(generateResponse(err="mimetype not accepted"))
-        if not validation_res["size"]:
-            return Response(generateResponse(err="file size too large"))
+        if not avatar:
+            return Response(generateResponse(err="avatar file not uploaded"), status=400)
+        size_validation = cloud.validate_file_size(avatar.size)
+        content_type_validation = cloud.validate_img_type(avatar.content_type)
+
+        if not size_validation:
+            return Response(generateResponse(err="file size too large"), status=400)
+        if not content_type_validation:
+            return Response(generateResponse(err="file format not accepted"), status=400)
+
         profile = Profile.objects.get(user=req.user)
         try:
             if profile.avatar:
-                cloud.destroy(profile.avatar["public_id"])
-            uploads = cloud.img_upload(avatar)
+                cloud.delete(profile.avatar["key"])
+            uploads = cloud.upload(avatar)
             profile.avatar = uploads
             profile.save()
-            return Response(generateResponse("profile updated successfully"))
+            return Response(generateResponse("profile avatar updated successfully"), status=200)
         except Exception as e:
             print(e)
-            return Response(generateResponse(err="something went wrong"))
-    # def post(self, req):
-    #     """
-    #     method for uploading/updating profile avatar
-    #     """
-    #     avatar = req.FILES.get("avatar", None)
-    #     cloud = Cloud("account")
-    #     if not avatar:
-    #         return Response(generateResponse(err="avatar file not uploaded"))
-    #     validation_res = cloud.img_validate(avatar.content_type, avatar.size)
+            return Response(generateResponse(err="something went wrong"), status=400)
 
-    #     if not validation_res["mimetype"]:
-    #         return Response(generateResponse(err="mimetype not accepted"))
-    #     if not validation_res["size"]:
-    #         return Response(generateResponse(err="file size too large"))
-    #     profile = Profile.objects.get(user=req.user)
-    #     try:
-    #         if profile.avatar:
-    #             cloud.destroy(profile.avatar["public_id"])
-    #         uploads = cloud.img_upload(avatar)
-    #         profile.avatar = uploads
-    #         profile.save()
-    #         return Response(generateResponse("profile updated successfully"))
-    #     except Exception as e:
-    #         print(e)
-    #         return Response(generateResponse(err="something went wrong"))
+  
 
 
 class UsersView(APIView):
@@ -200,14 +183,14 @@ class UsersView(APIView):
             user = User.objects.get(username=username)
             if not user:
                 return Response(
-                    generateResponse(err="user with the username does not exist")
+                    generateResponse(err="user with the username does not exist"), status=404
                 )
             first = Profile.objects.get(user=user.pk)
             second = profile_serializer(instance=first)
             return Response(generateResponse(second.data))
         first = Profile.objects.all().order_by("-created_at")
         second = profile_serializer(instance=first, many=True)
-        return Response(generateResponse(second.data))
+        return Response(generateResponse(second.data), status=200)
 
 
 # special updates
@@ -219,24 +202,24 @@ def update_password_view(req):
     old_password = req.data.get("old_password", None)
     new_password = req.data.get("new_password", None)
     if not old_password:
-        return Response(generateResponse(err="old password must be provided"))
+        return Response(generateResponse(err="old password must be provided"), status=404)
     if not new_password:
-        return Response(generateResponse(err="new password must be provided"))
+        return Response(generateResponse(err="new password must be provided"), status=404)
     if len(new_password) < 6:
         return Response(
             generateResponse(
                 err="the length of the new password must be greated than five"
-            )
+            ), status=400
         )
     if old_password == new_password:
-        return Response(generateResponse(err="the two password must not be the same"))
+        return Response(generateResponse(err="the two password must not be the same"), status=400)
     auth_user = authenticate(username=req.user.username, password=old_password)
     if not auth_user:
-        return Response(generateResponse(err="old password not correct"))
+        return Response(generateResponse(err="old password not correct"), status=400)
     user = req.user
     user.set_password(new_password)
     user.save()
-    return Response(generateResponse("password updated"))
+    return Response(generateResponse("password updated"), status=200)
 
 
 @api_view(["PUT"])
@@ -249,17 +232,17 @@ def update_username_view(req):
     new_username = req.data.get("username", None)
     # validations
     if not new_username:
-        return Response(generateResponse(err="new username must be provided"))
+        return Response(generateResponse(err="new username must be provided"), status=404)
     if old_username == new_username:
         return Response(
-            generateResponse(err="new username must be different from old username")
+            generateResponse(err="new username must be different from old username"), status=400
         )
     isExist = User.objects.filter(username=new_username).exists()
     if isExist:
-        return Response(generateResponse(err="username not available"))
+        return Response(generateResponse(err="username not available"), status=400)
     user.username = new_username
     user.save()
-    return Response(generateResponse("username updated"))
+    return Response(generateResponse("username updated"), status=200)
 
 
 @api_view(["PUT"])
@@ -272,17 +255,17 @@ def update_email_view(req):
     new_email = req.data.get("email", None)
     # validations
     if not new_email:
-        return Response(generateResponse(err="new email must be provided"))
+        return Response(generateResponse(err="new email must be provided"), status=404)
     if old_email == new_email:
         return Response(
-            generateResponse(err="new email must be different from old email")
+            generateResponse(err="new email must be different from old email"), status=400
         )
     isExist = User.objects.filter(email=new_email).exists()
     if isExist:
-        return Response(generateResponse(err="email not available"))
+        return Response(generateResponse(err="email not available"), status=400)
     user.email = new_email
     user.save()
-    return Response(generateResponse("email updated"))
+    return Response(generateResponse("email updated"), status=200)
 
 
 # maybe for future purpose

@@ -1,7 +1,11 @@
+
+
+
 class Main:
     """
     * This class is responsible for all file validation operations
     """
+
     allowed_img_type = (
         "image/jpeg",
         "image/webp",
@@ -13,20 +17,26 @@ class Main:
     default_file_size = 2 * 1024 * 1024
     allowed_unit = ("MB", "GB", "KB")
 
-    def to_byte(self, value, unit=MB):
+    def to_byte(self, value):
         """
-        * This method convert a value from either mb | kb | gb unit to byte
+        * This method convert a value from either mb unit to byte
         * The default unit is mb
         * Value must not be zero
         """
-        product = 0
-        if unit == "KB":
-            product = 1024 * value
-        elif unit == "MB":
-            product = 1024 * 1024 * value
-        else:
-            product = 1024 * 1024 * 1024 * value
+        product = 1024 * 1024 * value
         return product
+
+    def to_mb(self, value):
+        """
+        * This method convert a value from either mb unit to byte
+        * The default unit is mb
+        * Value must not be zero
+        """
+
+        product = value / 1024 / 1024
+        # product = round(value / 1024 / 1024)
+        return product
+        # return f"{product}mb"
 
     def validate_img_type(self, content_type):
         """
@@ -51,3 +61,22 @@ class Main:
         if "audio" in content_type or "video" in content_type:
             return True
         return False
+
+    def validate_allowed_types(self, content_type):
+        is_img = self.validate_img_type(content_type)
+        is_multimedia = self.validate_multimedia_type(content_type)
+
+        if not is_img and not is_multimedia:
+            return False
+        return True
+
+    def multiple_validate_allowed_types(self, content_types):
+        result = True
+        for content_type in content_types:
+            state = self.validate_allowed_types(content_type)
+            if not state:
+                result = state
+                break
+            else:
+                continue
+        return result

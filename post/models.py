@@ -21,7 +21,15 @@ class News(MetaStamps):
     likes = models.ManyToManyField(
         settings.AUTH_USER_MODEL, related_name="likes", blank=True
     )
+    views = models.IntegerField(default=0)
     content = models.TextField(null=True, blank=True)
+    updated_by = models.ForeignKey(
+        "channel.Publisher",
+        null=True,
+        blank=True,
+        related_name="updater",
+        on_delete=models.SET_NULL,
+    )
 
     def save(self, *args, **kwargs):
         self.slug = slugify(self.title)

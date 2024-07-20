@@ -15,7 +15,7 @@ from shortuuid import uuid
 from rest_framework.permissions import IsAdminUser, IsAuthenticated, AllowAny
 from .permissions import IsSuperPermitted, HaveOwnershipRight
 from account.utils.serializers.user import profile_serializer
-from helpers.cloud import Cloud
+from helpers.bucket import CloudManager
 from . import bot
 
 # Basic CRUD Ops
@@ -28,7 +28,7 @@ class CrudView(APIView):
         ser_data = ChannelCreateSerializer(data=req.data)
         if not ser_data.is_valid():
             return Response(
-                generateResponse(err="channel name and description are required")
+                generateResponse(err="channel name and description are required"), status=400
             )
         public_id = uuid()
         ser_data.save(owner=req.user, public_id=public_id)
@@ -39,7 +39,7 @@ class CrudView(APIView):
         )
         publisher.save()
 
-        return Response(generateResponse("channel created successfully"))
+        return Response(generateResponse("channel created successfully"), status=201)
 
     def get(self, req):
         """
@@ -52,7 +52,7 @@ class CrudView(APIView):
         if channel_public_id:
             raw_data = Channel.objects.filter(public_id=channel_public_id)
             if not raw_data[0]:
-                return Response(generateResponse(err="channel does not exist"))
+                return Response(generateResponse(err="channel does not exist"), status=404)
             serialized_data = ChannelReadSerializer(instance=raw_data[0]).data
             return Response(generateResponse(serialized_data))
         # if channel public_id was not provided
@@ -91,7 +91,7 @@ class CrudView(APIView):
             "membered_channels": membered_channels,
             "followed": followed_channels,
         }
-        return Response(generateResponse(result))
+        return Response(generateResponse(result), status=200)
 
     def put(self, req):
         """
@@ -102,16 +102,16 @@ class CrudView(APIView):
         """
         public_id = req.GET.get("public_id", None)
         if not public_id:
-            return Response(generateResponse(err="channel public_id must be provided"))
+            return Response(generateResponse(err="channel public_id must be provided"), status=400)
         channel = Channel.objects.get(public_id=public_id)
         if not channel:
-            return Response(generateResponse(err="channel does not exist"))
+            return Response(generateResponse(err="channel does not exist"), status=404)
         name = req.data.get("name", channel.name)
         description = req.data.get("name", channel.description)
         channel.name = name
         channel.description = description
         channel.save()
-        return Response(generateResponse("channel updated"))
+        return Response(generateResponse("channel updated"), status=200)
 
     def delete(self, req):
         """
@@ -119,16 +119,16 @@ class CrudView(APIView):
         """
         public_id = req.GET.get("public_id", None)
         if not public_id:
-            return Response(generateResponse(err="public_id must be provided"))
+            return Response(generateResponse(err="public_id must be provided"), status=400)
         channel = Channel.objects.filter(public_id=public_id)
         if not channel:
-            return Response(generateResponse(err="channel does not exist"))
+            return Response(generateResponse(err="channel does not exist"), status=404)
         c = channel[0]
         if c.avatar:
             cloud = Cloud("ll")
             cloud.destroy(c.avatar["public_id"])
         channel.delete()
-        return Response(generateResponse("channel deleted"))
+        return Response(generateResponse("channel deleted"), status=200)
 
 
 # Channel publisher ops
@@ -156,10 +156,10 @@ class PublisherView(APIView):
         channel_public_id = req.GET.get("channel", None)
         publisher_public_id = req.GET.get("publisher", None)
         if not channel_public_id:
-            return Response(generateResponse(err="channel public id must be provided"))
+            return Response(generateResponse(err="channel public id must be provided"), status=400)
         channel = Channel.objects.get(public_id=channel_public_id)
         if not channel:
-            return Response(generateResponse(err="invalid channel public id provided"))
+            return Response(generateResponse(err="invalid channel public id provided"), status=400)
         if not publisher_public_id:
             serialized = PublisherReadSerializer(instance=channel.publishers, many=True)
             return Response(generateResponse(serialized.data))
@@ -167,9 +167,9 @@ class PublisherView(APIView):
             public_id=publisher_public_id, channel=channel
         )
         if not publisher:
-            return Response(generateResponse(err="publisher not found"))
-        serialized = PublisherReadSerializer(instance=publisher)
-        return Response(generateResponse(serialized.data))
+            return Response(generateResponse(err="publisher not found"),status=404)
+        serialized = PublisherReadSerializer(instance=publisher).data
+        return Response(generateResponse(serialized), status=200)
 
     def post(self, req):
         """
@@ -188,20 +188,20 @@ class PublisherView(APIView):
         # validations
         if not channel_public_id:
             return Response(
-                generateResponse(err="channel public id param must be provided")
+                generateResponse(err="channel public id param must be provided"), status=400
             )
         if not user_public_id:
             return Response(
-                generateResponse(err="public id for user profile must be provided")
+                generateResponse(err="public id for user profile must be provided"), status=400
             )
         # fetching the profile and channel model instance
         profile = Profile.objects.filter(public_id=user_public_id)[0]
         channel = Channel.objects.filter(public_id=channel_public_id)[0]
         # validations ... against no profile and no channel
         if not profile:
-            return Response(generateResponse(err="user profile public id not valid"))
+            return Response(generateResponse(err="user profile public id not valid"), status=400)
         if not channel:
-            return Response(generateResponse(err="channel public id not valid"))
+            return Response(generateResponse(err="channel public id not valid"), status=400)
 
         # check if the user is already a memeber of the channel
         is_member = Publisher.objects.filter(
@@ -211,11 +211,11 @@ class PublisherView(APIView):
         if is_member:
             return Response(
                 generateResponse(
-                    f"{profile.user.username} is already a publisher on {channel.name} channel"
-                )
+                    err = f"{profile.user.username} is already a publisher on {channel.name} channel"
+                ), status=400
             )
         Publisher.objects.create(channel=channel, user=profile.user)
-        return Response(generateResponse("publisher added"))
+        return Response(generateResponse("publisher added"), status=201)
 
     def put(self, req):
         """
@@ -228,15 +228,15 @@ class PublisherView(APIView):
         publisher_public_id = req.data.get("p_public_id", None)
         if not publisher_public_id:
             return Response(
-                generateResponse(err="publisher public id must be provided")
+                generateResponse(err="publisher public id must be provided"), status=400
             )
         is_channel_admin = req.data.get("is_channel_admin", False)
         publisher = Publisher.objects.get(public_id=publisher_public_id)
         if not publisher:
-            return Response(generateResponse(err="invalid publisher public id"))
+            return Response(generateResponse(err="invalid publisher public id"), status=400)
         publisher.is_channel_admin = is_channel_admin
         publisher.save()
-        return Response(generateResponse("publisher permission level updated"))
+        return Response(generateResponse("publisher permission level updated"), status=200)
 
     def delete(self, req):
         """
@@ -248,16 +248,15 @@ class PublisherView(APIView):
         p_public_id = req.data.get("p_public_id", None)
         if not p_public_id:
             return Response(
-                generateResponse(err="publisher public id must be provided")
+                generateResponse(err="publisher public id must be provided"), status=400
             )
 
         publishers = Publisher.objects.filter(public_id=p_public_id)
-        print()
         if len(publishers):
-            publishers[0].delete()
-            return Response(generateResponse("publisher deleted"))
+            publishers.delete()
+            return Response(generateResponse("publisher deleted"), status=200)
 
-        return Response(generateResponse(err="publisher does not exist"))
+        return Response(generateResponse(err="publisher does not exist"), status=404)
 
 
 # changing ownership
@@ -279,18 +278,18 @@ class ChangeOwnershipView(APIView):
         channel_public_id = req.GET.get("channel", None)
         profile_public_id = req.data.get("new_owner", None)
         if not channel_public_id:
-            return Response(generateResponse(err="channel public id must be provided"))
+            return Response(generateResponse(err="channel public id must be provided"), status=400)
         if not profile_public_id:
-            return Response(generateResponse(err="profile public id must be provided"))
+            return Response(generateResponse(err="profile public id must be provided"), status=400)
 
         c_filt = Channel.objects.filter(public_id=channel_public_id)
         p_filt = Profile.objects.filter(public_id=profile_public_id)
 
         if not c_filt[0]:
-            return Response(generateResponse(err="invalid channel public id provided"))
+            return Response(generateResponse(err="invalid channel public id provided"), status=400)
 
         if not p_filt[0]:
-            return Response(generateResponse(err="invalid profile public id provided"))
+            return Response(generateResponse(err="invalid profile public id provided"), status=400)
         channel = c_filt[0]
         profile = p_filt[0]
         print(channel.owner)
@@ -299,27 +298,27 @@ class ChangeOwnershipView(APIView):
             return Response(
                 generateResponse(
                     err="previous and the new channel owner must not be the same"
-                )
+                ), status=400
             )
 
         channel.owner = profile.user
         channel.save()
-        return Response(generateResponse("change of ownership successful"))
+        return Response(generateResponse("change of ownership successful"), status=200)
 
 
 class GetChannelOwner(APIView):
     def get(self, req):
         channel_public_id = req.GET.get("channel", None)
         if not channel_public_id:
-            return Response(generateResponse(err="channel public id must be provided"))
+            return Response(generateResponse(err="channel public id must be provided"), status=400)
         filt = Channel.objects.filter(public_id=channel_public_id)
         if not filt[0]:
-            return Response(generateResponse(err="channel does not exist"))
+            return Response(generateResponse(err="channel does not exist"), status=404)
         channel = filt[0]
         profile = profile_serializer(
             instance=Profile.objects.get(user=channel.owner)
         ).data
-        return Response(generateResponse(profile))
+        return Response(generateResponse(profile), status=200)
 
 
 # get all channels
@@ -334,7 +333,7 @@ class GetAllChannels(APIView):
 
     def get(self, req):
         channels = ChannelReadSerializer(instance=Channel.objects.all(), many=True).data
-        return Response(generateResponse(channels))
+        return Response(generateResponse(channels), status=200)
 
 
 # un/following a channel
@@ -351,12 +350,12 @@ class FollowChannel(APIView):
         """
         channel_public_id = req.GET.get("channel", None)
         if not channel_public_id:
-            return Response(generateResponse(err="channel public id must be provided"))
+            return Response(generateResponse(err="channel public id must be provided"), status=400)
         filtrate = Channel.objects.filter(public_id=channel_public_id)
         if not filtrate:
-            return Response(generateResponse(err="invalid channel public id provided"))
+            return Response(generateResponse(err="invalid channel public id provided"), status=400)
         channel = ChannelReadSerializer(instance=filtrate[0]).data
-        return Response(generateResponse(channel["followers"]))
+        return Response(generateResponse(channel["followers"]), status=200)
 
     def put(self, req):
         """
@@ -366,16 +365,16 @@ class FollowChannel(APIView):
         """
         channel_public_id = req.GET.get("channel", None)
         if not channel_public_id:
-            return Response(generateResponse(err="channel public id must be provided"))
+            return Response(generateResponse(err="channel public id must be provided"), status=400)
         profile_public_id = req.data.get("user", None)
         if not profile_public_id:
-            return Response(generateResponse(err="user public id must be provided"))
+            return Response(generateResponse(err="user public id must be provided"), status=400)
         profile_filtrate = Profile.objects.filter(public_id=profile_public_id)
         channel_filtrate = Channel.objects.filter(public_id=channel_public_id)
         if not profile_filtrate:
-            return Response(generateResponse(err="invalid user public id provided"))
+            return Response(generateResponse(err="invalid user public id provided"), status=400)
         if not channel_filtrate:
-            return Response(generateResponse(err="invalid channel public id provided"))
+            return Response(generateResponse(err="invalid channel public id provided"), status=400)
         channel = channel_filtrate[0]
         profile = profile_filtrate[0]
         s_channel = ChannelReadSerializer(instance=channel).data
@@ -383,7 +382,7 @@ class FollowChannel(APIView):
             channel.followers.add(profile.user)
             channel.save()
             return Response(
-                generateResponse(f"You are now following the {channel.name} channel")
+                generateResponse(f"You are now following the {channel.name} channel"), status=200
             )
         else:
             followed = False
@@ -392,12 +391,12 @@ class FollowChannel(APIView):
                     followed = True
             if followed:
                 return Response(
-                    generateResponse(err="You already followed this channel")
+                    generateResponse(err="You already followed this channel"), status=400
                 )
             channel.followers.add(profile.user)
             channel.save()
             return Response(
-                generateResponse(f"You are now following the {channel.name} channel")
+                generateResponse(f"You are now following the {channel.name} channel"), status=200
             )
 
     def delete(self, req):
@@ -408,22 +407,22 @@ class FollowChannel(APIView):
         """
         channel_public_id = req.GET.get("channel", None)
         if not channel_public_id:
-            return Response(generateResponse(err="channel public id must be provided"))
+            return Response(generateResponse(err="channel public id must be provided"), status=400)
         profile_public_id = req.data.get("user", None)
         if not profile_public_id:
-            return Response(generateResponse(err="user public id must be provided"))
+            return Response(generateResponse(err="user public id must be provided"), status=400)
         profile_filtrate = Profile.objects.filter(public_id=profile_public_id)
         channel_filtrate = Channel.objects.filter(public_id=channel_public_id)
         if not profile_filtrate:
-            return Response(generateResponse(err="invalid user public id provided"))
+            return Response(generateResponse(err="invalid user public id provided"), status=400)
         if not channel_filtrate:
-            return Response(generateResponse(err="invalid channel public id provided"))
+            return Response(generateResponse(err="invalid channel public id provided"), status=400)
         channel = channel_filtrate[0]
         profile = profile_filtrate[0]
         s_channel = ChannelReadSerializer(instance=channel).data
         if not len(s_channel["followers"]):
             return Response(
-                generateResponse(err=f"{channel.name} channel have no follower")
+                generateResponse(err=f"{channel.name} channel have no follower"), status=400
             )
         else:
             followed = False
@@ -434,12 +433,12 @@ class FollowChannel(APIView):
                 return Response(
                     generateResponse(
                         err=f"You are not a follower of the {channel.name} channel"
-                    )
+                    ), status=404
                 )
             channel.followers.remove(profile.user)
             channel.save()
             return Response(
-                generateResponse(f"You unfollowed the {channel.name} channel")
+                generateResponse(f"You unfollowed the {channel.name} channel"), status=200
             )
 
 
@@ -460,39 +459,40 @@ class AvatarUpload(APIView):
     def get(self, req):
         channel_public_id = req.GET.get("channel", None)
         if not channel_public_id:
-            return Response(generateResponse(err="channel public id must be provided"))
+            return Response(generateResponse(err="channel public id must be provided"), status=400)
         filt = Channel.objects.filter(public_id=channel_public_id)
         if not filt:
-            return Response(generateResponse(err="invalid channel public id provided"))
+            return Response(generateResponse(err="invalid channel public id provided"), status=400)
         channel = ChannelReadSerializer(instance=filt[0]).data
-        return Response(generateResponse(channel["avatar"]))
+        return Response(generateResponse(channel["avatar"]), status=200)
 
     def post(self, req):
         """
         Method for uploading/updating channel avatar
         """
-        cloud = Cloud(folder="channel")
+        cloud = CloudManager("ruffle", "channel")
         avatar = req.FILES.get("avatar", None)
         channel_public_id = req.GET.get("channel", None)
         if not avatar:
-            return Response(generateResponse(err="avatar must be uploaded"))
+            return Response(generateResponse(err="avatar must be uploaded"), status=400)
         if not channel_public_id:
-            return Response(generateResponse(err="channel public id must be provided"))
+            return Response(generateResponse(err="channel public id must be provided"), status=400)
         filt = Channel.objects.filter(public_id=channel_public_id)
         if not filt:
-            return Response(generateResponse(err="invalid channel public id provided"))
-        validation_res = cloud.img_validate(avatar.content_type, avatar.size)
-        if not validation_res["mimetype"]:
-            return Response(generateResponse(err="mimetype not accepted"))
-        if not validation_res["size"]:
-            return Response(generateResponse(err="file size too large"))
+            return Response(generateResponse(err="invalid channel public id provided"), status=400)
+        size = cloud.validate_file_size(avatar.size)
+        content_type = cloud.validate_img_type(avatar.content_type)
+        if not content_type:
+            return Response(generateResponse(err="content type not accepted"), status=400)
+        if not size:
+            return Response(generateResponse(err="file size too large"), status=400)
         channel = filt[0]
         try:
             if channel.avatar:
-                cloud.destroy(channel.avatar["public_id"])
-            upload = cloud.img_upload(avatar)
+                cloud.delete(channel.avatar["key"])
+            upload = cloud.upload(avatar)
             channel.avatar = upload
             channel.save()
-            return Response(generateResponse("upload done"))
+            return Response(generateResponse("upload done"), status=200)
         except:
-            return Response(generateResponse(err="something went wrong"))
+            return Response(generateResponse(err="something went wrong"), status=400)
