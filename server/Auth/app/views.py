@@ -11,6 +11,8 @@ from .models import Profile
 from shortuuid import uuid
 from rest_framework.decorators import api_view
 from rest_framework.authtoken.models import Token
+import requests
+import os
 
 
 class RegView(APIView):
@@ -104,35 +106,6 @@ class LoginView(APIView):
         )
 
 
-
-# class AuthUserInfo(APIView):
-#     """
-#     > This is a class responsible for verifying the auth token and returning the user profile
-#     > It is intended to serve as the bridge of authentication used by all microservices
-#     * It requires a key url query param
-#     """
-
-#     permission_classes = [AllowAny]
-
-#     def get(self, req):
-#         key = req.GET.get("key", None)
-#         if not key:
-#             return Response(generateResponse(err={"msg": "token must be provided"}))
-#         try:
-#             first = Token.objects.get(key=key)
-#             if not first:
-#                 return REsponse(generateResponse(err={"msg": "user does not exist"}))
-#             second = Profile.objects.filter(user=first.user)
-#             if not second.exists():
-#                 return REsponse(generateResponse(err={"msg": "user does not exist"}))
-#             third = second[0]
-#             ser = ReadProfileSerializer(instance=third)
-#             user = User.objects.get
-#             return Response(generateResponse({"profile": ser.data, "token": key}))
-#         except Exception as e:
-#             return Response(generateResponse(err={"msg": "something went wrong"}))
-
-
 class ProfileView(APIView):
     """
     > A class responsible for all CRUD operations on the user profile
@@ -142,12 +115,22 @@ class ProfileView(APIView):
         """
         > A method for getting user profile
         """
+        storage_server_url = os.getenv("STORAGE_SERVER_URL")
         user = req.user
         first = Profile.objects.filter(user=user)
         if not first.exists:
             return Response(generateResponse(err={"msg": "user does not exist"}))
-        second = ReadProfileSerializer(instance=first[0])
-        return Response(generateResponse({"profile": second.data}))
+        second = ReadProfileSerializer(instance=first[0]).data
+        # getting user avatar
+        # avavtar_public_id = second["avatar_public_id"]
+        # if avavtar_public_id:
+        #     x = requests.get(f"{storage_server_url}?id={avavtar_public_id}")
+        #     y = x.json()
+        #     if y["err"]:
+        #         return Response(generateResponse(err=y["err"]))
+        #     z = {**second, avatar: y["data"]}
+        #     return Response(generateResponse({"profile": z}))
+        return Response(generateResponse({"profile": second}))
 
     def put(self, req):
         """
@@ -190,6 +173,62 @@ class ProfileView(APIView):
             return Response(generateResponse(err={"msg": "user does not exists"}))
         first.delete()
         return Response(generateResponse({"msg": "user deleted"}))
+
+
+class AvatarView(APIView):
+    """
+    > This method is responsible for managing user avatar
+    """
+
+    storage_server_url = os.getenv("STORAGE_SERVER_URL")
+
+    def post(self, req):
+        """
+        > This method is responsible for updating and uploading user avatar
+        """
+        folder = "auth"
+        media = req.FILES.get("media", None)
+        if not media:
+            return Response(generateResponse(err={"msg": "media must be provided"}))
+        first = Profile.objects.filter(user=req.user)
+        if not first.exists():
+            return Response(generateResponse(err={"msg": "user does not exists"}))
+        profile = first[0]
+        try:
+            token = Token.objects.get(user=req.user).key
+            avatar_public_id = profile.avatar_public_id
+            if not avatar_public_id:
+                first_req = requests.post(
+                    f"{self.storage_server_url}?folder=auth",
+                    files={"media": media},
+                    headers={"Token": token},
+                )
+                res = first_req.json()
+                err = res.get("err", None)
+                data = res.get("data", None)
+                if err:
+                    return Response(generateResponse(err=err))
+                profile.avatar_public_id = data["msg"]
+                profile.save()
+                return Response(
+                    generateResponse({"msg": "avatar uploaded successfully"})
+                )
+            else:
+                first_req = requests.put(
+                    f"{self.storage_server_url}?id={avatar_public_id}",
+                    files={"media": media},
+                    headers={"Token": token},
+                )
+                res = first_req.json()
+                err = res.get("err", None)
+                data = res.get("data", None)
+                if err:
+                    return Response(generateResponse(err=err))
+                return Response(
+                    generateResponse({"msg": "avatar updated successfully"})
+                )
+        except Exception as e:
+            return Response(generateResponse(err={"msg": "something went wrong"}))
 
 
 @api_view(["PUT"])
@@ -246,9 +285,7 @@ def password_update_view(req):
         )
     check_user = authenticate(username=req.user.username, password=old_password)
     if not check_user:
-        return Response(
-            generateResponse(err={"msg": "incorrect old password"})
-        )
+        return Response(generateResponse(err={"msg": "incorrect old password"}))
     user = User.objects.get(username=req.user.username)
     user.set_password = new_password
     user.save()

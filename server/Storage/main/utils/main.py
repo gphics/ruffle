@@ -27,7 +27,6 @@ class CloudStorage:
             }
             return res
         except Exception as e:
-            print(e)
             raise e
 
     def delete(self, key):
