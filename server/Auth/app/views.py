@@ -128,7 +128,7 @@ class ProfileView(APIView):
             y = x.json()
             if y["err"]:
                 return Response(generateResponse(err=y["err"]))
-            z = {**second, avatar: y["data"]}
+            z = {**second, "avatar": y["data"]}
             return Response(generateResponse({"profile": z}))
         return Response(generateResponse({"profile": second}))
 
