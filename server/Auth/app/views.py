@@ -114,6 +114,7 @@ class ProfileView(APIView):
     def get(self, req):
         """
         > A method for getting user profile
+        > This method also get the avatar detail
         """
         storage_server_url = os.getenv("STORAGE_SERVER_URL")
         user = req.user
