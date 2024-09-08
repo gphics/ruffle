@@ -116,22 +116,25 @@ class ProfileView(APIView):
         > A method for getting user profile
         > This method also get the avatar detail
         """
-        storage_server_url = os.getenv("STORAGE_SERVER_URL")
-        user = req.user
-        first = Profile.objects.filter(user=user)
-        if not first.exists:
-            return Response(generateResponse(err={"msg": "user does not exist"}))
-        second = ReadProfileSerializer(instance=first[0]).data
-        # getting user avatar
-        avavtar_public_id = second["avatar_public_id"]
-        if avavtar_public_id:
-            x = requests.get(f"{storage_server_url}?id={avavtar_public_id}")
-            y = x.json()
-            if y["err"]:
-                return Response(generateResponse(err=y["err"]))
-            z = {**second, "avatar": y["data"]}
-            return Response(generateResponse({"profile": z}))
-        return Response(generateResponse({"profile": second}))
+        try:
+            storage_server_url = os.getenv("STORAGE_SERVER_URL")
+            user = req.user
+            first = Profile.objects.filter(user=user)
+            if not first.exists:
+                return Response(generateResponse(err={"msg": "user does not exist"}))
+            second = ReadProfileSerializer(instance=first[0]).data
+            # getting user avatar
+            avavtar_public_id = second["avatar_public_id"]
+            if avavtar_public_id:
+                x = requests.get(f"{storage_server_url}?id={avavtar_public_id}")
+                y = x.json()
+                if y["err"]:
+                    return Response(generateResponse(err=y["err"]))
+                z = {**second, "avatar": y["data"]}
+                return Response(generateResponse({"profile": z}))
+            return Response(generateResponse({"profile": second}))
+        except Exception as e:
+            return Response(generateResponse(err={"msg": "something went wrong"}))
 
     def put(self, req):
         """
@@ -174,8 +177,6 @@ class ProfileView(APIView):
             return Response(generateResponse(err={"msg": "user does not exists"}))
         first.delete()
         return Response(generateResponse({"msg": "user deleted"}))
-
-
 class AvatarView(APIView):
     """
     > This method is responsible for managing user avatar

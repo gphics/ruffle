@@ -1,2 +1,3 @@
-# This is for the server part of the application
-## The architecture is microservice
+# Ruffle
+#### This is the server part of the web application
+A fullstack web application that allows it's users disseminate information faster. 
