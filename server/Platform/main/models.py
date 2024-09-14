@@ -10,7 +10,7 @@ class Metastamps(models.Model):
     class Meta:
         abstract = True
 
-
+ 
 class Channel(Metastamps):
     name = models.CharField(max_length=100)
     # the user will be filled with public_id of the auth user

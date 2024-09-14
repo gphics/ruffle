@@ -29,6 +29,7 @@ This microservice is responsible for handling user authentication using DRF toke
         > get: to retrieve user profile
         > put: to update user profile
         > delete: to delete user
+    > Note: The user profile avatar detail will be returned if the storage microservice is available and the user profile have avatar  
 
 ###### Update Password:
     > Description: This route is responsible for updating password
@@ -69,3 +70,8 @@ This microservice is responsible for handling user authentication using DRF toke
     > data:
         > media
     > return: update successful unless there is an error
+###### Get All Users:
+    > Description: This route is responsible for getting and filtering all users
+    > method: get
+    > url: /users
+    > return: user profile detail with it's avatar detail if present and the storage microservice is available

@@ -145,8 +145,8 @@ class Cloud(APIView):
         first = Storage.objects.filter(public_id=public_id)
         if not first.exists():
             return Response({"data": None, "err": "media object does not exist"})
-        second = ReadStorageSerializer(instance=first[0])
-        return Response({"data": second.data, "err": None})
+        second = ReadStorageSerializer(instance=first[0]).data
+        return Response(generateResponse({"msg":second}))
 
     def delete(self, req):
         """

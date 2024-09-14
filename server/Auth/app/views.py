@@ -3,16 +3,17 @@ from django.contrib.auth.models import User
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
-from .serializers import RegSerializer, ReadProfileSerializer
-from .genRes import generateResponse
-from .create_token import get_or_create
+from .utils.serializers import RegSerializer, ReadProfileSerializer, UserSerializer
+from .utils.genRes import generateResponse
+from .utils.create_token import get_or_create
 from django.contrib.auth import authenticate
 from .models import Profile
 from shortuuid import uuid
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.authtoken.models import Token
 import requests
 import os
+from .utils.paginator import paginate
 
 
 class RegView(APIView):
@@ -69,7 +70,7 @@ class RegView(APIView):
         token = get_or_create(user=auth_user)
         user_profile = Profile.objects.create(user=auth_user, public_id=uuid())
 
-        return Response(generateResponse({"msg": "user created"} | token))
+        return Response(generateResponse({"msg": token}))
 
 
 class LoginView(APIView):
@@ -101,9 +102,7 @@ class LoginView(APIView):
             return Response(generateResponse(err={"msg": "invalid credentials"}))
         token = get_or_create(user=auth_user)
 
-        return Response(
-            generateResponse(data={"msg": "user login successfully"} | token)
-        )
+        return Response(generateResponse(data={"msg": token}))
 
 
 class ProfileView(APIView):
@@ -113,16 +112,17 @@ class ProfileView(APIView):
 
     def get(self, req):
         """
-        > A method for getting user profile
+        > A method for getting user profile for the authenticated user
         > This method also get the avatar detail
         """
+        storage_server_url = os.getenv("STORAGE_SERVER_URL")
+        user = req.user
+        first = Profile.objects.filter(user=user)
+        if not first.exists:
+            return Response(generateResponse(err={"msg": "user does not exist"}))
+        second = ReadProfileSerializer(instance=first[0]).data
         try:
-            storage_server_url = os.getenv("STORAGE_SERVER_URL")
-            user = req.user
-            first = Profile.objects.filter(user=user)
-            if not first.exists:
-                return Response(generateResponse(err={"msg": "user does not exist"}))
-            second = ReadProfileSerializer(instance=first[0]).data
+
             # getting user avatar
             avavtar_public_id = second["avatar_public_id"]
             if avavtar_public_id:
@@ -130,11 +130,13 @@ class ProfileView(APIView):
                 y = x.json()
                 if y["err"]:
                     return Response(generateResponse(err=y["err"]))
-                z = {**second, "avatar": y["data"]}
-                return Response(generateResponse({"profile": z}))
-            return Response(generateResponse({"profile": second}))
+                z = {**second, "avatar": y["data"]["msg"]}
+                return Response(generateResponse({"msg": z}))
+            # if there is no user profile avatar detail
+            return Response(generateResponse({"msg": second}))
         except Exception as e:
-            return Response(generateResponse(err={"msg": "something went wrong"}))
+            # return the user profile detail if the storage microservice is not available
+            return Response(generateResponse({"msg": second}))
 
     def put(self, req):
         """
@@ -177,6 +179,8 @@ class ProfileView(APIView):
             return Response(generateResponse(err={"msg": "user does not exists"}))
         first.delete()
         return Response(generateResponse({"msg": "user deleted"}))
+
+
 class AvatarView(APIView):
     """
     > This method is responsible for managing user avatar
@@ -263,7 +267,7 @@ def email_update_view(req):
     user.email = new_email
     user.save()
     token = get_or_create(user)
-    return Response(generateResponse({"msg": "email updated"} | token))
+    return Response(generateResponse({"msg": token}))
 
 
 @api_view(["PUT"])
@@ -293,7 +297,7 @@ def password_update_view(req):
     user.save()
     token = get_or_create(user=user)
 
-    return Response(generateResponse({"msg": "password updated"} | token))
+    return Response(generateResponse({"msg": token}))
 
 
 @api_view(["PUT"])
@@ -320,11 +324,93 @@ def username_update_view(req):
     user.username = new_username
     user.save()
     token = get_or_create(user)
-    return Response(generateResponse({"msg": "username updated"} | token))
+    return Response(generateResponse({"msg": token}))
 
 
 @api_view(["GET"])
 def validate_auth(req):
+    """
+    > A function based view responsible for verifying if user is authenticated
+    > This view is used by other microservice
+    """
     if req.user:
         return Response(generateResponse({"msg": True}))
     return Response(generateResponse(err={"msg": False}))
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def verify_user(req):
+    """
+    > A function based view responsible for verifying if the user public_id provided exist
+    > Required url param:
+        > p_id (user profile public_id)
+    """
+    p_id = req.GET.get("id", None)
+    if not p_id:
+        return Response(
+            generateResponse(err={"msg": "user public_id must be provided"})
+        )
+    first = Profile.objects.filter(public_id=p_id)
+    if not first.exists():
+        return Response(generateResponse(err={"msg": "user does not exist"}))
+    return Response(generateResponse({"msg": "user verified"}))
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def get_all_users(req):
+    """
+    > A function based view responsible for querying user
+    > This view returns all users
+    > If username url param is provided, it will be used for filtering
+    # > The response returned is always paginated, hence requires optional url param "page"
+    > If the storage server is not available, the profile will be returned without it's avatar detail
+    """
+    username = req.GET.get("username", None)
+    page = int(req.GET.get("page", 1))
+    first = []
+    if not username:
+        ser = ReadProfileSerializer(instance=Profile.objects.all(), many=True).data
+        first = ser
+    # for filtering
+    else:
+        users = User.objects.filter(username__icontains=username)
+        if not len(users):
+            first = []
+        else:
+            for user in users:
+                user_profile = ReadProfileSerializer(
+                    instance=Profile.objects.get(user=user)
+                ).data
+                first.append(user_profile)
+    if not len(first):
+        return Response(generateResponse(err={"msg": "Not found"}))
+    # paginating the result
+    paginated_data = paginate(first, 20, page)
+    if not paginated_data:
+        return Response(generateResponse(err={"msg": "Not found"}))
+    second = []
+    # refining the paginated result
+    for user in paginated_data:
+        avatar_public_id = user["avatar_public_id"]
+        # if user does not have avatar
+        if not avatar_public_id:
+            second.append(user)
+        # if user have avatar
+        else:
+            try:
+                storage_server_url = os.getenv("STORAGE_SERVER_URL")
+                x = requests.get(f"{storage_server_url}?id={avatar_public_id}")
+                y = x.json()
+                data = y["data"]
+                err = y["err"]
+                if err:
+                    return Response(y)
+                product = {**user, "avatar": data["msg"]}
+                second.append(product)
+            except Exception as e:
+                # in case an error occurs with the storage microservice, then ignore getting the avatar detail
+                second.append(user)
+
+    return Response(generateResponse({"msg": second}))
