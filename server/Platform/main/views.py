@@ -187,6 +187,10 @@ class PublisherCRUD(APIView):
     """
 
     def get(self, req):
+        """
+        > This method returns all the publisher of a channel whose public_id was provided as a url param "channel"
+        
+        """
         c_public_id = req.GET.get("channel", None)
         if not c_public_id:
             return Response(
@@ -371,3 +375,4 @@ def all_channels(req):
     ).data
     paginated_result = paginate(serialized_all_channels, page, 20)
     return Response(generateResponse({"msg": paginated_result}))
+

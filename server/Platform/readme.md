@@ -22,4 +22,44 @@ A microservice responsible for the CRUD operations on the Channel and Publisher 
 ### Routes
 > Base route = ""
 
-### Routing
+### Routing 
+
+##### Channel:
+    > Description: This route is responsible for CRUD operations on the channel model.
+    > url = /channel
+    > method:
+        > post : for creating the channel
+        > put : for updating the channel
+        > get : for retrieving the channel whose public_id was provided as a url param
+        > delete : for deleting the channel whose public_id was provided as a url param 
+    > data :
+        > name
+        > description
+    > return = return a success message if no error
+    > Note:
+        > The authenticated user will be used as the owner of the channel
+
+
+##### Publisher:
+    > Description: This route is responsible for CRUD operations on the publisher model.
+    > url = /publisher
+    > method:
+        > post : for creating the publisher
+        > put : for updating the is_admin value of the publisher
+        > get : for retrieving the publishers of a channel whose public_id was provided as a url param "channel"
+        > delete : for deleting the publisher whose public_id was provided as a url param  "id"
+    > data :
+        > user (user profile public_id)
+    > return = return a success message if no error
+    > Note:
+        > The authenticated user will be used as the owner of the channel
+##### All Channels:
+    > Description: This route is responsible for retrieving all channels
+    > url = /channel/all
+    > method:get
+    > data :
+        > name
+        > description
+    > return = return a success message if no error
+    > Note:
+        > The authenticated user will be used as the owner of the channel
