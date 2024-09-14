@@ -116,13 +116,9 @@ class ProfileView(APIView):
         > This method also get the avatar detail
         """
         storage_server_url = os.getenv("STORAGE_SERVER_URL")
-        user = req.user
-        first = Profile.objects.filter(user=user)
-        if not first.exists:
-            return Response(generateResponse(err={"msg": "user does not exist"}))
-        second = ReadProfileSerializer(instance=first[0]).data
-        try:
 
+        second = ReadProfileSerializer(instance=req.user.profile).data
+        try:
             # getting user avatar
             avavtar_public_id = second["avatar_public_id"]
             if avavtar_public_id:
@@ -388,11 +384,13 @@ def get_all_users(req):
         return Response(generateResponse(err={"msg": "Not found"}))
     # paginating the result
     paginated_data = paginate(first, 20, page)
+    result = paginated_data["result"]
+    total_pages = paginated_data["total_pages"]
     if not paginated_data:
         return Response(generateResponse(err={"msg": "Not found"}))
     second = []
     # refining the paginated result
-    for user in paginated_data:
+    for user in result:
         avatar_public_id = user["avatar_public_id"]
         # if user does not have avatar
         if not avatar_public_id:
@@ -413,4 +411,18 @@ def get_all_users(req):
                 # in case an error occurs with the storage microservice, then ignore getting the avatar detail
                 second.append(user)
 
-    return Response(generateResponse({"msg": second}))
+    return Response(
+        generateResponse(
+            {"msg": {"total_pages": total_pages, "current_page": page, "users": second}}
+        )
+    )
+
+
+@api_view(["GET"])
+def get_user_public_id(req):
+    """
+    > A function based view responsible for getting user profile public_id
+    > This view is meant to be used by other microservice
+    """
+    public_id = req.user.profile.public_id
+    return Response(generateResponse({"msg": public_id}))

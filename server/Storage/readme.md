@@ -2,7 +2,12 @@
 
 ### Description
 
-The storage microservice is responsible for saving media files on amazons3 bucket
+The storage microservice is responsible for CRUD operations o the Storage model. Media files are saved on amazons3 bucket
+
+#### Local Port = 5050
+
+### Models:
+    > Storage
 
 ### Routes
 > Base route = storage

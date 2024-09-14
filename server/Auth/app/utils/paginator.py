@@ -18,5 +18,4 @@ def paginate(data, limit=20, page=1):
         cur = limit * cur_page
         res = data[prev:cur]
         result = res
-    print(len(result))
-    return result
+    return {"result": result, "total_pages": total_page_num}

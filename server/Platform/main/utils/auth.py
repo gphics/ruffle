@@ -23,19 +23,24 @@ def validate_auth(token):
 def get_user_public_id(token):
     """
     > This method is responsible for returning user public_id
-    """
+    """ 
+
     try:
         req = requests.get(
-            auth_server_url,
+            f"{auth_server_url}public-id",
             headers={"Authorization": f"Token {token}"},
         )
         res = req.json()
         data = res.get("data", None)
         err = res.get("err", None)
+        detail = res.get("detail", None)
+        if detail:
+            return {"data": None, "err": {"msg": detail}}
         if err:
             return res
-        return generateResponse({"msg": data["msg"]["public_id"]})
+        return generateResponse({"msg": data["msg"]})
     except Exception as e:
+        print(e)
         return generateResponse(err={"msg": "something went wrong"})
 
 

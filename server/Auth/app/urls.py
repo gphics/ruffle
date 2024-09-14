@@ -12,5 +12,6 @@ urlpatterns = [
     path("update-password", views.password_update_view),
     path("verify-user", views.verify_user),
     path("users", views.get_all_users),
+    path("public-id", views.get_user_public_id),
     
 ]
