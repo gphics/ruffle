@@ -4,7 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.decorators import api_view
 from .utils.genRes import generateResponse
 from .utils.auth import validate_auth, get_user_public_id, verify_user
-from .utils.serializers import ChannelSerializer
+from .utils.serializers import ChannelSerializer, PublisherSerializer
 from .models import Channel, Publisher
 from .utils.paginator import paginate
 from shortuuid import uuid
@@ -19,27 +19,19 @@ class ChannelCRUD(APIView):
 
     def get(self, req):
         """
-        > This is a method that returns all channels in the abscence of the "name" parameter in the url
-        > The name parameter is the name of the channel
-        > This method also take an optional parameter "page" which is use for pagination
-        > The maximum quantity of channel return per page is 20
-        > This method does not rquires authentication
+        > This method returns the channel with the public id provided as a url param
+        > This method does not require authorization or authentication
         """
-        name = req.GET.get("name", None)
-        page = int(req.GET.get("page", 1))
-        # if query param is provided
-        if name:
-            query_result = Channel.objects.filter(name__icontains=name)
-            ser = ChannelSerializer(instance=query_result, many=True).data
-            if not len(ser):
-                return Response(generateResponse(err={"msg": "Not found"}))
-            return Response(generateResponse({"msg": ser}))
-        # if query param is not provided
-        serialized_all_channels = ChannelSerializer(
-            instance=Channel.objects.all(), many=True
-        ).data
-        paginated_result = paginate(serialized_all_channels, page, 20)
-        return Response(generateResponse({"msg": paginated_result}))
+        id = req.GET.get("id", None)
+        if not id:
+            return Response(
+                generateResponse({"msg": "channel public id must be provided"})
+            )
+        channel_filt = Channel.objects.filter(public_id=id)
+        if not channel_filt.exists():
+            return Response(generateResponse({"msg": "channel does not exist"}))
+        channel = ChannelSerializer(instance=channel_filt[0]).data
+        return Response(generateResponse({"msg": channel}))
 
     def post(self, req):
         """
@@ -195,7 +187,18 @@ class PublisherCRUD(APIView):
     """
 
     def get(self, req):
-        pass
+        c_public_id = req.GET.get("channel", None)
+        if not c_public_id:
+            return Response(
+                generateResponse(err={"msg": "channel public id must be provided"})
+            )
+
+        channel_filt = Channel.objects.filter(public_id=c_public_id)
+        if not channel_filt.exists():
+            return Response(generateResponse(err={"msg": "channel does not exist"}))
+        channel = channel_filt[0]
+        publishers = PublisherSerializer(instance=channel.publishers, many=True).data
+        return Response(generateResponse({"msg": publishers}))
 
     def post(self, req):
         """
@@ -213,7 +216,7 @@ class PublisherCRUD(APIView):
         first_err = first["err"]
         first_data = first["data"]
         if first_err:
-            return Response(first_err)
+            return Response(first)
 
         # checking auth user channel permission
         g_perm = GrandPermissions(first_data["msg"])
@@ -256,7 +259,58 @@ class PublisherCRUD(APIView):
         return Response(generateResponse({"msg": "publisher created successfully"}))
 
     def put(self, req):
-        pass
+        """
+        > This method is responsible for updating the publisher admin state
+        > Required data:
+            > is_admin (Boolean)
+        > Required url param:
+            > id (publisher public id)
+        > Only an admin publisher can perform this operation
+        """
+        # Authentication start
+        token = req.headers.get("Token", None)
+        if not token:
+            return Response(generateResponse(err={"msg": "You are not authenticated"}))
+        # getting the auth user public id
+        auth = get_user_public_id(token)
+        auth_data = auth["data"]
+        auth_err = auth["err"]
+        # if an error occur
+        if auth_err:
+            return Response(auth)
+        user_public_id = auth_data["msg"]
+        admin_publisher_filt = Publisher.objects.filter(user=user_public_id)
+        if not admin_publisher_filt.exists():
+            return Response(generateResponse(err={"msg": "Invalid auth token"}))
+        # Authetication end
+        #
+        #
+        # Authorization start
+        admin_publisher = admin_publisher_filt[0]
+        if not admin_publisher.is_admin:
+            return Response(generateResponse(err={"msg": "Unauthorized attempt"}))
+        # Authorization end
+        id = req.GET.get("id", None)
+        is_admin = req.data.get("is_admin", None)
+        if not id:
+            return Response(
+                generateResponse(err={"msg": "publisher public id must be provided"})
+            )
+        if id == admin_publisher.public_id:
+            return Response(
+                generateResponse(
+                    err={"msg": "You cannot update your admin status yourself"}
+                )
+            )
+        if is_admin == None:
+            return Response(generateResponse(err={"msg": "is_admin must be provided"}))
+        first = Publisher.objects.filter(public_id=id)
+        if not first.exists():
+            return Response(generateResponse(err={"msg": "publisher does not exist"}))
+        publisher = first[0]
+        publisher.is_admin = is_admin
+        publisher.save()
+        return Response(generateResponse({"msg": "publisher updated"}))
 
     def delete(self, req):
         """
@@ -264,4 +318,56 @@ class PublisherCRUD(APIView):
         > The only authorized user is admin publisher
         > Only non admin publisher can be deleted
         """
-        pass
+        token = req.headers.get("Token", None)
+        publisher_public_id = req.GET.get("id", None)
+        if not token:
+            return Response(generateResponse(err={"msg": "You are not authenticated"}))
+        if not publisher_public_id:
+            return Response(
+                generateResponse(err={"msg": "publisher public id must be provided"})
+            )
+        auth_res = get_user_public_id(token)
+        auth_err = auth_res["err"]
+        auth_data = auth_res["data"]
+        if auth_err:
+            return Response(auth_res)
+        is_admin = Publisher.objects.filter(
+            user=auth_data["msg"], is_admin=True
+        ).exists()
+        if not is_admin:
+            return Response(
+                generateResponse(
+                    err={"msg": "You are not authorize to perform this action"}
+                )
+            )
+        publisher_filt = Publisher.objects.filter(public_id=publisher_public_id)
+        if not publisher_filt.exists():
+            return Response(generateResponse(err={"msg": "Publisher does not exist"}))
+        publisher_filt.delete()
+        return Response(generateResponse({"msg": "publisher deleted"}))
+
+
+@api_view(["GET"])
+def all_channels(req):
+    """
+    > This is a method that returns all channels in the abscence of the "name" parameter in the url
+    > The name parameter is the name of the channel
+    > This method also take an optional parameter "page" which is use for pagination
+    > The maximum quantity of channel return per page is 20
+    > This method does not rquires authentication
+    """
+    name = req.GET.get("name", None)
+    page = int(req.GET.get("page", 1))
+    # if query param is provided
+    if name:
+        query_result = Channel.objects.filter(name__icontains=name)
+        ser = ChannelSerializer(instance=query_result, many=True).data
+        if not len(ser):
+            return Response(generateResponse(err={"msg": "Not found"}))
+        return Response(generateResponse({"msg": ser}))
+    # if query param is not provided
+    serialized_all_channels = ChannelSerializer(
+        instance=Channel.objects.all(), many=True
+    ).data
+    paginated_result = paginate(serialized_all_channels, page, 20)
+    return Response(generateResponse({"msg": paginated_result}))

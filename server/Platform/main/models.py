@@ -29,7 +29,7 @@ class Publisher(Metastamps):
     # the user will be filled with public_id of the auth user
     user = models.CharField(max_length=50)
     is_admin = models.BooleanField(default=False)
-    channel = models.ForeignKey(Channel, on_delete=models.CASCADE)
+    channel = models.ForeignKey(Channel, on_delete=models.CASCADE, related_name="publishers")
 
     class Meta:
         ordering = ["-created_at"]

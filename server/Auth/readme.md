@@ -4,6 +4,10 @@
 
 This microservice is responsible for handling user authentication using DRF token auth.
 
+### Models:
+    > User
+    > Profile
+
 ### Routing
 
 > main route = **auth**
