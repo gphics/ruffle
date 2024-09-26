@@ -20,7 +20,7 @@ A microservice responsible for the CRUD operations on the Channel and Publisher 
     > A channel can only have at most 4 publishers including it's owner making 5
 
 ### Routes
-> Base route = ""
+> Base route = "platform/"
 
 ### Routing 
 

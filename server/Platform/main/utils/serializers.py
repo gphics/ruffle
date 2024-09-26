@@ -14,3 +14,4 @@ class PublisherSerializer(serializers.ModelSerializer):
     class Meta:
         model = Publisher
         fields = "__all__"
+        depth = 2

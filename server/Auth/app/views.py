@@ -384,10 +384,11 @@ def get_all_users(req):
         return Response(generateResponse(err={"msg": "Not found"}))
     # paginating the result
     paginated_data = paginate(first, 20, page)
-    result = paginated_data["result"]
-    total_pages = paginated_data["total_pages"]
     if not paginated_data:
         return Response(generateResponse(err={"msg": "Not found"}))
+    result = paginated_data["result"]
+    total_pages = paginated_data["total_pages"]
+    cur_page = paginated_data["cur_page"]
     second = []
     # refining the paginated result
     for user in result:

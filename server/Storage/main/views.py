@@ -84,6 +84,7 @@ class Cloud(APIView):
                 return Response(generateResponse({"msg": output}))
 
         except Exception as e:
+            print(e)
             return Response(generateResponse(err={"msg": "something went wrong"}))
 
     def put(self, req):

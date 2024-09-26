@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from .utils.genRes import generateResponse
 from .utils.auth import validate_auth, get_user_public_id, verify_user
 from .utils.serializers import ChannelSerializer, PublisherSerializer
@@ -9,6 +9,9 @@ from .models import Channel, Publisher
 from .utils.paginator import paginate
 from shortuuid import uuid
 from .utils.permissions import GrandPermissions
+from rest_framework.permissions import AllowAny
+import requests
+import os
 
 
 class ChannelCRUD(APIView):
@@ -19,15 +22,22 @@ class ChannelCRUD(APIView):
 
     def get(self, req):
         """
-        > This method returns the channel with the public id provided as a url param
+        > This method returns the channel with the id (public_id) or pk provided as a url param
         > This method does not require authorization or authentication
         """
         id = req.GET.get("id", None)
-        if not id:
+        pk = req.GET.get("pk", None)
+        if not id and not pk:
             return Response(
-                generateResponse({"msg": "channel public id must be provided"})
+                generateResponse(
+                    err={"msg": "channel public id or primary key must be provided"}
+                )
             )
-        channel_filt = Channel.objects.filter(public_id=id)
+        channel_filt = None
+        if id:
+            channel_filt = Channel.objects.filter(public_id=id)
+        else:
+            channel_filt = Channel.objects.filter(pk=pk)
         if not channel_filt.exists():
             return Response(generateResponse({"msg": "channel does not exist"}))
         channel = ChannelSerializer(instance=channel_filt[0]).data
@@ -188,8 +198,8 @@ class PublisherCRUD(APIView):
 
     def get(self, req):
         """
-        > This method returns all the publisher of a channel whose public_id was provided as a url param "channel"
-        
+        > This method returns all the publishers of a channel whose public_id was provided as a url param "channel"
+
         """
         c_public_id = req.GET.get("channel", None)
         if not c_public_id:
@@ -259,7 +269,9 @@ class PublisherCRUD(APIView):
             )
 
         # creating the publisher
-        Publisher.objects.create(user=user_public_id, channel=channel[0])
+        Publisher.objects.create(
+            user=user_public_id, channel=channel[0], public_id=uuid()
+        )
         return Response(generateResponse({"msg": "publisher created successfully"}))
 
     def put(self, req):
@@ -362,17 +374,138 @@ def all_channels(req):
     """
     name = req.GET.get("name", None)
     page = int(req.GET.get("page", 1))
+    result = []
     # if query param is provided
     if name:
         query_result = Channel.objects.filter(name__icontains=name)
-        ser = ChannelSerializer(instance=query_result, many=True).data
-        if not len(ser):
+        if not query_result.exists():
             return Response(generateResponse(err={"msg": "Not found"}))
-        return Response(generateResponse({"msg": ser}))
-    # if query param is not provided
-    serialized_all_channels = ChannelSerializer(
-        instance=Channel.objects.all(), many=True
-    ).data
-    paginated_result = paginate(serialized_all_channels, page, 20)
-    return Response(generateResponse({"msg": paginated_result}))
+        result = ChannelSerializer(instance=query_result, many=True).data
+    else:
+        # if query param is not provided
+        serialized_all_channels = ChannelSerializer(
+            instance=Channel.objects.all(), many=True
+        ).data
+        result = serialized_all_channels
+    paginated_result = paginate(result, page, 20)
+    result = paginated_result["result"]
+    cur_page = paginated_result["cur_page"]
+    total_pages = paginated_result["total_pages"]
+    final_result = []
+    for ch in result:
+        avatar = ch["avatar_public_id"]
+        if not avatar:
+            final_result.append(ch)
+        else:
+            storage_server_url = os.getenv("STORAGE_SERVER_URL")
+            first = requests.get(f"{storage_server_url}?id={avatar}")
+            second = first.json()
+            err = second["err"]
+            data = second["data"]
+            if err:
+                return Response(second)
+            built = {**ch, "avatar": data["msg"]}
+            final_result.append(built)
+    return Response(
+        generateResponse(
+            {
+                "msg": {
+                    "cur_page": cur_page,
+                    "total_pages": total_pages,
+                    "result": final_result,
+                }
+            }
+        )
+    )
 
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def get_publisher(req):
+    """
+    > This method returns a publisher whose public_id or user public_id was provided
+    > Required param:
+        > id (publisher public_id or user public_id)
+    """
+    id = req.GET.get("id", None)
+    if not id:
+        return Response(generateResponse(err={"msg": "public_id must be provided"}))
+    first = Publisher.objects.filter(user=id)
+    if not first.exists():
+        second = Publisher.objects.filter(public_id=id)
+        if second.exists():
+            ser = PublisherSerializer(instance=second[0]).data
+            return Response(generateResponse({"msg": ser}))
+        else:
+            return Response(generateResponse(err={"msg": "Publisher does not exist"}))
+    else:
+        ser = PublisherSerializer(instance=first[0]).data
+        return Response(generateResponse({"msg": ser}))
+
+
+@api_view(["POST"])
+def upload_channel_avatar(req):
+    # working on getting and validating the channel
+    channel_p_id = req.GET.get("id", None)
+    if not channel_p_id:
+        return Response(
+            generateResponse(err={"msg": "channel public id must be provided"})
+        )
+    channel_filt = Channel.objects.filter(public_id=channel_p_id)
+    if not channel_filt.exists():
+        return Response(generateResponse(err={"msg": "channel does not exist"}))
+    channel = channel_filt[0]
+    # working on auth
+    token = req.headers.get("token", None)
+    if not token:
+        return Response(generateResponse(err={"msg": "You are not authenticated"}))
+    auth_info = get_user_public_id(token)
+    auth_err = auth_info["err"]
+    auth_data = auth_info["data"]
+    user_public_id = auth_data["msg"]
+    # validating the publisher
+    publisher_filt = Publisher.objects.filter(channel=channel, user=user_public_id)
+    if not publisher_filt.exists():
+        return Response(generateResponse(err={"msg": "You are not authorized"}))
+    media = req.FILES.get("media")
+    if not media:
+        return Response(generateResponse(err={"msg": "media file must be uploaded"}))
+    try:
+
+        storage_server_url = os.getenv("STORAGE_SERVER_URL")
+        if not channel.avatar_public_id:
+            first = requests.post(
+                f"{storage_server_url}?folder=platform",
+                files={"media": media},
+                headers={"Token": token},
+            )
+            second = first.json()
+            err = second["err"]
+            data = second["data"]
+            if err:
+                return Response(second)
+            channel.avatar_public_id = data["msg"]
+            channel.save()
+            return Response(generateResponse({"msg": "channel avatar uploaded"}))
+        else:
+            p_id = channel.avatar_public_id
+            first = requests.put(
+                f"{storage_server_url}?id={p_id}",
+                files={"media": media},
+                headers={"Token": token},
+            )
+            second = first.json()
+            err = second["err"]
+            data = second["data"]
+            if err:
+                return Response(second)
+            return Response(generateResponse({"msg": "channel avatar updated"}))
+    except Exception as e:
+        print(e)
+        return Response(generateResponse(err={"msg": "something went wrong"}))
+
+
+#
+#
+#
+# #### Channel avatar

@@ -1,4 +1,6 @@
 from django.urls import path
 from . import views
 
-urlpatterns = [path("", views.Cloud.as_view()),]
+urlpatterns = [
+    path("", views.Cloud.as_view()),
+]
